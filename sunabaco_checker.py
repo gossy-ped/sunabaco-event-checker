@@ -13,34 +13,29 @@ PUBLIC_KEY = "public_nFppopYuqo7kDqjlp"
 
 def get_events():
 
-    r = requests.get(URL)
+r = requests.get(URL)
     soup = BeautifulSoup(r.text, "html.parser")
 
     events = []
 
-    cards = soup.find_all("article")
+    # 「article」だけじゃなく、イベントが入っていそうな箱（aタグなど）を探す
+    # SUNABACOのサイト構造に合わせて「.post-item」などを指定するのがコツです
+    cards = soup.select("article, .post-item, .card") 
 
     for c in cards:
+        # 1. リンクを探す
+        link = c if c.name == "a" else c.find("a")
+        if not link: continue
+        
+        url = link.get("href")
+        
+        # 2. タイトルを探す（h2やh3という大きな文字を探す）
+        title_tag = c.find(["h2", "h3"])
+        title = title_tag.get_text(strip=True) if title_tag else "なまえのないイベント"
 
-        link = c.find("a")
-
-        if not link:
-            continue
-
-        url = link["href"]
-
-        if not url.startswith("http"):
-            url = "https://sunabaco.com" + url
-
-        title = link.get_text(strip=True)
-
-        img = c.find("img")
-
-        image = img["src"] if img else ""
-
+        # 3. 日付を探す
         date_tag = c.find("time")
-
-        date = date_tag.get_text(strip=True) if date_tag else ""
+        date = date_tag.get_text(strip=True) if date_tag else "日付なし"
 
         events.append({
             "title": title,
