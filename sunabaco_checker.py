@@ -13,7 +13,7 @@ PUBLIC_KEY = "public_nFppopYuqo7kDqjlp"
 
 def get_events():
 
-r = requests.get(URL)
+    r = requests.get(URL)
     soup = BeautifulSoup(r.text, "html.parser")
 
     events = []
