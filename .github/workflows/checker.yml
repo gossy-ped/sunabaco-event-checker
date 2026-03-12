@@ -16,12 +16,16 @@ jobs:
 
     steps:
 
-      - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v5
+      - name: Setup Python
+        uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
-      - run: pip install -r requirements.txt
+      - name: Install libraries
+        run: pip install -r requirements.txt
 
-      - run: python sunabaco_checker.py
+      - name: Run script
+        run: python sunabaco_checker.py
