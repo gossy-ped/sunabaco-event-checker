@@ -37,6 +37,13 @@ def get_events():
         date_tag = c.find("time")
         date = date_tag.get_text(strip=True) if date_tag else "日付なし"
 
+        # 4. 画像（image）を準備する
+        img_tag = c.find("img")
+        if img_tag:
+            image = img_tag.get("src", "") # 画像があればそのURLを入れる
+        else:
+            image = "" # 画像がなければ空っぽにする
+            
         events.append({
             "title": title,
             "date": date,
