@@ -74,7 +74,7 @@ def send_email(event):
         json={
             "service_id": SERVICE_ID,
             "template_id": TEMPLATE_ID,
-            "user_id": PUBLIC_KEY,
+            "public_key": PUBLIC_KEY,
             "template_params": {
                 "title": event["title"],
                 "date": event["date"],
@@ -83,7 +83,8 @@ def send_email(event):
             }
         }
     )
-
+    print("EmailJS status:", response.status_code)
+    print(response.text)
 
 def push_to_github():
 
