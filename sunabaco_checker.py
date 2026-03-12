@@ -22,12 +22,29 @@ def get_events():
     # SUNABACOのサイト構造に合わせて「.post-item」などを指定するのがコツです
     cards = soup.select("article, .post-item, .card") 
 
-    for c in cards:
-        # 1. リンクを探す
-        link = c if c.name == "a" else c.find("a")
-        if not link: continue
+        for c in cards:
+        # aタグを全部探して、その中から「#」じゃないものを探す作戦
+        links = c.find_all("a")
+        link_tag = None
         
-        url = link.get("href")
+        for l in links:
+            href = l.get("href", "")
+            if href and not href.startswith("#"): # #beginner などを除外
+                link_tag = l
+                break
+        
+        if not link_tag:
+            continue
+
+        url = link_tag["href"]
+        if not url.startswith("http"):
+            url = "https://sunabaco.com" + url
+
+        # タイトルは、そのリンクの中の文字、またはh2/h3から取る
+        title = link_tag.get_text(strip=True)
+        if not title:
+            title_tag = c.find(["h2", "h3"])
+            title = title_tag.get_text(strip=True) if title_tag else "無題のイベント"
         
         # 2. タイトルを探す（h2やh3という大きな文字を探す）
         title_tag = c.find(["h2", "h3"])
