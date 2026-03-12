@@ -6,9 +6,9 @@ import subprocess
 
 URL = "https://sunabaco.com/event/"
 
-SERVICE_ID = "service_xxxxxx"
-TEMPLATE_ID = "template_xxxxxx"
-PUBLIC_KEY = "public_xxxxxx"
+SERVICE_ID = "service_9u0xdoa"
+TEMPLATE_ID = "template_ax2xf9c"
+PUBLIC_KEY = "nFppopYuqo7kDqjlp"
 
 
 def get_events():
