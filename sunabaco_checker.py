@@ -69,7 +69,7 @@ def save(events):
 
 def send_email(event):
 
-    requests.post(
+    response = requests.post(
         "https://api.emailjs.com/api/v1.0/email/send",
         json={
             "service_id": SERVICE_ID,
