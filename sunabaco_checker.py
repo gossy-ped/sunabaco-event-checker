@@ -6,9 +6,9 @@ import subprocess
 
 URL = "https://sunabaco.com/event/"
 
-SERVICE_ID = "service_9u0xdoa"
-TEMPLATE_ID = "template_ax2xf9c"
-PUBLIC_KEY = "nFppopYuqo7kDqjlp"
+SERVICE_ID = "service_xxxxxx"
+TEMPLATE_ID = "template_xxxxxx"
+PUBLIC_KEY = "public_xxxxxx"
 
 
 def get_events():
@@ -19,20 +19,40 @@ def get_events():
 
     events = []
 
-    for a in soup.find_all("a", href=True):
+    cards = soup.find_all("article")
 
-        title = a.get_text(strip=True)
-        link = a["href"]
+    for c in cards:
 
-        if "event" in link and len(title) > 5:
+        title = c.get_text(strip=True)
 
-            if not link.startswith("http"):
-                link = "https://sunabaco.com" + link
+        link = c.find("a")
 
-            events.append({
-                "title": title,
-                "url": link
-            })
+        if link:
+            url = link["href"]
+
+            if not url.startswith("http"):
+                url = "https://sunabaco.com" + url
+        else:
+            continue
+
+        img = c.find("img")
+
+        if img:
+            image = img["src"]
+        else:
+            image = ""
+
+        date = ""
+
+        for t in c.find_all("time"):
+            date = t.get_text(strip=True)
+
+        events.append({
+            "title": title,
+            "date": date,
+            "url": url,
+            "image": image
+        })
 
     return events
 
@@ -52,7 +72,7 @@ def save(events):
         json.dump(events, f, ensure_ascii=False, indent=2)
 
 
-def send_email(message):
+def send_email(event):
 
     requests.post(
         "https://api.emailjs.com/api/v1.0/email/send",
@@ -61,20 +81,23 @@ def send_email(message):
             "template_id": TEMPLATE_ID,
             "user_id": PUBLIC_KEY,
             "template_params": {
-                "message": message
+                "title": event["title"],
+                "date": event["date"],
+                "url": event["url"],
+                "image": event["image"]
             }
         }
     )
 
 
-def commit_and_push():
+def commit_push():
 
-    subprocess.run(["git", "config", "--global", "user.name", "github-actions"])
-    subprocess.run(["git", "config", "--global", "user.email", "actions@github.com"])
+    subprocess.run(["git","config","--global","user.name","github-actions"])
+    subprocess.run(["git","config","--global","user.email","actions@github.com"])
 
-    subprocess.run(["git", "add", "events.json"])
-    subprocess.run(["git", "commit", "-m", "update events"])
-    subprocess.run(["git", "push"])
+    subprocess.run(["git","add","events.json"])
+    subprocess.run(["git","commit","-m","update events"])
+    subprocess.run(["git","push"])
 
 
 def main():
@@ -93,17 +116,13 @@ def main():
 
             new_events.append(e)
 
-    if new_events:
+    for e in new_events:
 
-        for e in new_events:
-
-            message = f"{e['title']}\n{e['url']}"
-
-            send_email(message)
+        send_email(e)
 
     save(events)
 
-    commit_and_push()
+    commit_push()
 
 
 if __name__ == "__main__":
