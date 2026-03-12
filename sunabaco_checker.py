@@ -12,60 +12,38 @@ TEMPLATE_ID = "template_ax2xf9c"
 PUBLIC_KEY = "nFppopYuqo7kDqjlp"
 
 def get_events():
-    """イベント一覧を取得する関数"""
-    try:
-        r = requests.get(URL, timeout=10)
-        r.encoding = r.apparent_encoding
-        soup = BeautifulSoup(r.text, "html.parser")
-    except Exception as e:
-        print(f"サイトが開けませんでした: {e}")
-        return []
+    r = requests.get(URL, timeout=10)
+    r.encoding = r.apparent_encoding
+    soup = BeautifulSoup(r.text, "html.parser")
 
     events = []
-    
-    # SUNABACOのサイト構造（WordPress/Elementor）に合わせた「箱」の探し方
-    # 複数のパターンで探すことで、1つだけでなく全部を拾えるようにします
-    cards = soup.select(".elementor-post, article, .post-item, .card")
+    # 1つずつのイベントカードを指す可能性が高い名前を順番に試します
+    cards = soup.select(".elementor-post, article.post, .post-item")
 
     for c in cards:
-        # 1. リンク(URL)を探す
-        # #で始まるタグ用リンクを除外し、/event/ を含む本物のリンクだけを探す
-        link_tag = None
-        for a in c.find_all("a"):
-            href = a.get("href", "")
-            if href and "/event/" in href and not href.startswith("#") and not href.endswith("/event/"):
-                link_tag = a
-                break
-        
-        if not link_tag:
+        # aタグ（リンク）を探す
+        link_tag = c.find("a")
+        if not link_tag: continue
+
+        url = link_tag.get("href", "")
+        # 「#」で始まるものや、イベント詳細じゃないURL（カテゴリー一覧など）を除外
+        if not url or url.startswith("#") or "category" in url or url == URL:
             continue
 
-        url = link_tag["href"]
         if not url.startswith("http"):
             url = "https://sunabaco.com" + url
 
-        # 2. タイトルを探す
-        # リンクの中の文字か、h2/h3タグから取得する
-        title = link_tag.get_text(strip=True)
-        if not title:
-            t_tag = c.find(["h2", "h3"])
-            title = t_tag.get_text(strip=True) if t_tag else "無題のイベント"
+        # タイトルをしっかり取る
+        title_tag = c.select_one(".elementor-post__title, h2, h3")
+        title = title_tag.get_text(strip=True) if title_tag else link_tag.get_text(strip=True)
 
-        # 3. 画像(image)を探す
-        img_tag = c.find("img")
-        image = img_tag.get("src", "") if img_tag else ""
-
-        # 4. 日付(date)を探す
-        date_tag = c.find("time")
-        date = date_tag.get_text(strip=True) if date_tag else "日付なし"
-
-        # 重複（同じURL）をリストに入れないようにする
+        # 重複チェック
         if not any(e['url'] == url for e in events):
             events.append({
                 "title": title,
-                "date": date,
+                "date": "確認中", 
                 "url": url,
-                "image": image
+                "image": "" # 必要なら画像取得も追加
             })
 
     return events
