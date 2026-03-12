@@ -84,19 +84,21 @@ def save(events):
         json.dump(events, f, ensure_ascii=False, indent=2)
 
 def send_email(event):
-    print(f"メール送信中: {event['title']}")
+    # ここで送る「名前（キー）」が重要！
+    params = {
+        "title": event["title"],
+        "date": event["date"],
+        "url": event["url"],
+        "image": event["image"]
+    }
+
     response = requests.post(
         "https://api.emailjs.com/api/v1.0/email/send",
         json={
             "service_id": SERVICE_ID,
             "template_id": TEMPLATE_ID,
-            "public_key": PUBLIC_KEY,
-            "template_params": {
-                "title": event["title"],
-                "date": event["date"],
-                "url": event["url"],
-                "image": event["image"]
-            }
+            "user_id": PUBLIC_KEY,      # ← ここを「public_key」から「user_id」に変えてみて！
+            "template_params": params
         }
     )
     print("EmailJS status:", response.status_code)
