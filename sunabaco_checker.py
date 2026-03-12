@@ -2,10 +2,13 @@ import requests
 from bs4 import BeautifulSoup
 import json
 import os
+import subprocess
 
 URL = "https://sunabaco.com/event/"
 
-IFTTT_URL = "ここにあなたのWebhookURL"
+SERVICE_ID = "service_9u0xdoa"
+TEMPLATE_ID = "template_ax2xf9c"
+PUBLIC_KEY = "nFppopYuqo7kDqjlp"
 
 
 def get_events():
@@ -16,12 +19,20 @@ def get_events():
 
     events = []
 
-    for h3 in soup.find_all("h3"):
+    for a in soup.find_all("a", href=True):
 
-        title = h3.get_text(strip=True)
+        title = a.get_text(strip=True)
+        link = a["href"]
 
-        if title:
-            events.append(title)
+        if "event" in link and len(title) > 5:
+
+            if not link.startswith("http"):
+                link = "https://sunabaco.com" + link
+
+            events.append({
+                "title": title,
+                "url": link
+            })
 
     return events
 
@@ -38,15 +49,32 @@ def load_old():
 def save(events):
 
     with open("events.json", "w") as f:
-        json.dump(events, f, ensure_ascii=False)
+        json.dump(events, f, ensure_ascii=False, indent=2)
 
 
-def notify(event):
+def send_email(message):
 
     requests.post(
-        IFTTT_URL,
-        json={"value1": event}
+        "https://api.emailjs.com/api/v1.0/email/send",
+        json={
+            "service_id": SERVICE_ID,
+            "template_id": TEMPLATE_ID,
+            "user_id": PUBLIC_KEY,
+            "template_params": {
+                "message": message
+            }
+        }
     )
+
+
+def commit_and_push():
+
+    subprocess.run(["git", "config", "--global", "user.name", "github-actions"])
+    subprocess.run(["git", "config", "--global", "user.email", "actions@github.com"])
+
+    subprocess.run(["git", "add", "events.json"])
+    subprocess.run(["git", "commit", "-m", "update events"])
+    subprocess.run(["git", "push"])
 
 
 def main():
@@ -55,17 +83,28 @@ def main():
 
     old = load_old()
 
-    new_events = list(set(events) - set(old))
+    old_urls = [e["url"] for e in old]
+
+    new_events = []
+
+    for e in events:
+
+        if e["url"] not in old_urls:
+
+            new_events.append(e)
 
     if new_events:
 
         for e in new_events:
 
-            notify(e)
+            message = f"{e['title']}\n{e['url']}"
+
+            send_email(message)
 
     save(events)
 
+    commit_and_push()
+
 
 if __name__ == "__main__":
-
     main()
