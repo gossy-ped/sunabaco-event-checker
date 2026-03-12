@@ -12,24 +12,23 @@ PUBLIC_KEY = "public_nFppopYuqo7kDqjlp"
 
 
 def get_events():
-
     r = requests.get(URL)
+    r.encoding = r.apparent_encoding
     soup = BeautifulSoup(r.text, "html.parser")
 
     events = []
+    # ここは左端を揃える
+    cards = soup.select("article, .post-item, .card, .card-news") 
 
-    # 「article」だけじゃなく、イベントが入っていそうな箱（aタグなど）を探す
-    # SUNABACOのサイト構造に合わせて「.post-item」などを指定するのがコツです
-    cards = soup.select("article, .post-item, .card") 
-
-        for c in cards:
-        # aタグを全部探して、その中から「#」じゃないものを探す作戦
+    for c in cards:
+        # ここから下は for の中なので1段右にズラす
         links = c.find_all("a")
         link_tag = None
         
         for l in links:
             href = l.get("href", "")
-            if href and not href.startswith("#"): # #beginner などを除外
+            # #で始まるリンクや、空っぽのリンクは飛ばす
+            if href and not href.startswith("#") and "/event/" in href:
                 link_tag = l
                 break
         
@@ -40,16 +39,11 @@ def get_events():
         if not url.startswith("http"):
             url = "https://sunabaco.com" + url
 
-        # タイトルは、そのリンクの中の文字、またはh2/h3から取る
+        # タイトルを探す
         title = link_tag.get_text(strip=True)
         if not title:
-            title_tag = c.find(["h2", "h3"])
-            title = title_tag.get_text(strip=True) if title_tag else "無題のイベント"
-        
-        # 2. タイトルを探す（h2やh3という大きな文字を探す）
-        title_tag = c.find(["h2", "h3"])
-        title = title_tag.get_text(strip=True) if title_tag else "なまえのないイベント"
-
+            t_tag = c.find(["h2", "h3"])
+            title = t_tag.get_text(strip=True) if t_tag else "無題のイベント"
         # 3. 日付を探す
         date_tag = c.find("time")
         date = date_tag.get_text(strip=True) if date_tag else "日付なし"
