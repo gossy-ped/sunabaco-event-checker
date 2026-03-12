@@ -8,7 +8,7 @@ URL = "https://sunabaco.com/event/"
 
 SERVICE_ID = "service_9u0xdoa"
 TEMPLATE_ID = "template_ax2xf9c"
-PUBLIC_KEY = "nFppopYuqo7kDqjlp"
+PUBLIC_KEY = "public_nFppopYuqo7kDqjlp"
 
 
 def get_events():
