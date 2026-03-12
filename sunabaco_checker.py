@@ -14,7 +14,6 @@ PUBLIC_KEY = "nFppopYuqo7kDqjlp"
 def get_events():
 
     r = requests.get(URL)
-
     soup = BeautifulSoup(r.text, "html.parser")
 
     events = []
@@ -23,29 +22,25 @@ def get_events():
 
     for c in cards:
 
-        title = c.get_text(strip=True)
-
         link = c.find("a")
 
-        if link:
-            url = link["href"]
-
-            if not url.startswith("http"):
-                url = "https://sunabaco.com" + url
-        else:
+        if not link:
             continue
+
+        url = link["href"]
+
+        if not url.startswith("http"):
+            url = "https://sunabaco.com" + url
+
+        title = link.get_text(strip=True)
 
         img = c.find("img")
 
-        if img:
-            image = img["src"]
-        else:
-            image = ""
+        image = img["src"] if img else ""
 
-        date = ""
+        date_tag = c.find("time")
 
-        for t in c.find_all("time"):
-            date = t.get_text(strip=True)
+        date = date_tag.get_text(strip=True) if date_tag else ""
 
         events.append({
             "title": title,
@@ -90,13 +85,15 @@ def send_email(event):
     )
 
 
-def commit_push():
+def push_to_github():
 
     subprocess.run(["git","config","--global","user.name","github-actions"])
     subprocess.run(["git","config","--global","user.email","actions@github.com"])
 
     subprocess.run(["git","add","events.json"])
-    subprocess.run(["git","commit","-m","update events"])
+
+    subprocess.run(["git","commit","-m","update events"], check=False)
+
     subprocess.run(["git","push"])
 
 
@@ -111,18 +108,17 @@ def main():
     new_events = []
 
     for e in events:
-
         if e["url"] not in old_urls:
-
             new_events.append(e)
 
-    for e in new_events:
+    if new_events:
 
-        send_email(e)
+        for e in new_events:
+            send_email(e)
 
     save(events)
 
-    commit_push()
+    push_to_github()
 
 
 if __name__ == "__main__":
