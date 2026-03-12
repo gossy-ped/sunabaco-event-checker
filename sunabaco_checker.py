@@ -84,24 +84,30 @@ def save(events):
         json.dump(events, f, ensure_ascii=False, indent=2)
 
 def send_email(event):
-    # ここで送る「名前（キー）」が重要！
-    params = {
-        "title": event["title"],
-        "date": event["date"],
-        "url": event["url"],
-        "image": event["image"]
+    print(f"メール送信テスト中: {event['title']}")
+    
+    # 送るデータをまとめる
+    data = {
+        "service_id": SERVICE_ID,
+        "template_id": TEMPLATE_ID,
+        "user_id": PUBLIC_KEY,  # ← 403エラー対策の重要ポイント！
+        "template_params": {
+            "title": event["title"],
+            "date": event["date"],
+            "url": event["url"],
+            "image": event["image"]
+        }
     }
 
+    # 送信
     response = requests.post(
         "https://api.emailjs.com/api/v1.0/email/send",
-        json={
-            "service_id": SERVICE_ID,
-            "template_id": TEMPLATE_ID,
-            "user_id": PUBLIC_KEY,      # ← ここを「public_key」から「user_id」に変えてみて！
-            "template_params": params
-        }
+        json=data
     )
+    
     print("EmailJS status:", response.status_code)
+    if response.status_code != 200:
+        print("エラーの理由:", response.text) # 403の詳しい理由が表示されます
 
 def push_to_github():
     try:
