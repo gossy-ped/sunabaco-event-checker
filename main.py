@@ -1,168 +1,127 @@
 import requests
-from bs4 import BeautifulSoup
 import json
 import os
+import re
 import urllib.parse
 
 # --- 設定エリア ---
 URL = "https://sunabaco.com/event/"
 
-# GitHub Secretsから値を受け取る
+# GitHub Secretsから取得
 SERVICE_ID = os.environ.get("EMAILJS_SERVICE_ID")
 TEMPLATE_ID = os.environ.get("EMAILJS_TEMPLATE_ID")
 PUBLIC_KEY = os.environ.get("EMAILJS_PUBLIC_KEY")
-PRIVATE_KEY = os.environ.get("EMAILJS_PRIVATE_KEY", "") # 403エラーが出る場合のみ使用
+PRIVATE_KEY = os.environ.get("EMAILJS_PRIVATE_KEY", "")
 
 def normalize_url(url):
-    """URLの末尾スラッシュやパラメータを消して統一する"""
+    """URLを正規化（?以降を削除し、末尾のスラッシュを消す）"""
     if not url: return ""
-    parsed = urllib.parse.urlparse(url)
-    return f"{parsed.scheme}://{parsed.netloc}{parsed.path}".rstrip("/")
+    url = url.split('?')[0]
+    return url.rstrip("/")
+
+def extract_match(content, regex):
+    """正規表現で抽出する補助関数"""
+    match = re.search(regex, content)
+    return match.group(1).strip() if match else ""
 
 def get_events():
-    """サイトからイベント情報を抜き出す"""
-    print(f"🔍 {URL} を確認中...")
+    """GASと同じロジック（正規表現）でイベントを抽出"""
+    print(f"🔍 {URL} をスキャン中...")
     headers = {'User-Agent': 'Mozilla/5.0'}
     try:
         r = requests.get(URL, timeout=15, headers=headers)
-        r.encoding = r.apparent_encoding
-        soup = BeautifulSoup(r.text, "html.parser")
+        html = r.text
     except Exception as e:
-        print(f"❌ サイトへのアクセスに失敗しました: {e}")
+        print(f"❌ 通信エラー: {e}")
         return []
 
+    # GASと同じ正規表現で <a>タグをカード単位として抽出
+    # href="https://sunabaco.com/event/..." を含むタグを探す
+    all_matches = re.findall(r'<a href="https://sunabaco\.com/event/[^"]+"[\s\S]*?</a>', html)
+    print(f"カード抽出数: {len(all_matches)}件")
+
     events = []
-    # GAS版で成功した「eventCard」クラスを狙い撃ち
-    cards = soup.select(".eventCard")
     processed_urls = set()
 
-    for c in cards:
-        link_tag = c.select_one("a")
-        if not link_tag: continue
+    for card in all_matches:
+        # href と title を抽出
+        link_match = re.search(r'href="([^"]+)"\s*title="([^"]+)"', card)
+        if not link_match:
+            continue
 
-        # URLの取得と正規化
-        raw_url = link_tag.get("href", "")
-        url = normalize_url(raw_url)
-        
-        # 今回の実行内での重複排除
-        if not url or url in processed_urls:
+        url = normalize_url(link_match.group(1))
+        title = link_match.group(2).replace('&amp;', '&').replace('&quot;', '"')
+
+        # 同一実行内での重複をスキップ
+        if url in processed_urls:
             continue
         processed_urls.add(url)
 
-        # タイトルの取得（title属性またはh3タグ）
-        title = link_tag.get("title", "").strip()
-        if not title:
-            title_el = c.select_one("h3")
-            title = title_el.get_text(strip=True) if title_el else "無題のイベント代"
-
-        # 画像URLの取得とエンコード（日本語ファイル名対策）
-        img_tag = c.select_one("img")
-        image_url = img_tag.get("src", "") if img_tag else ""
+        # 画像URLの抽出
+        image_url = extract_match(card, r'src="([^"]+)"')
         if image_url:
-            # GASのencodeURIと同じ処理
             image_url = urllib.parse.quote(image_url, safe=':/%')
 
-        # 詳細情報の取得
-        info_tag = c.select_one(".eventCard__info")
-        details = info_tag.get_text(" ", strip=True) if info_tag else "詳細はページを確認してください"
+        # 詳細の抽出 (タグを削除してテキストのみに)
+        details_raw = extract_match(card, r'class="eventCard__info">([\s\S]*?)</div>')
+        details = re.sub(r'<[^>]+>', ' ', details_raw).strip()
 
         events.append({
             "title": title,
-            "date": details, 
             "url": url,
-            "image": image_url
+            "image": image_url,
+            "date": details
         })
 
     return events
 
 def load_old_urls():
-    """過去に通知したURLのリストを読み込む"""
+    """履歴ファイルから通知済みURLを取得"""
     if not os.path.exists("events.json"):
-        print("💡 履歴ファイル(events.json)が見つかりません。初回実行として進みます。")
         return []
     try:
         with open("events.json", "r", encoding="utf-8") as f:
             data = json.load(f)
-            # URLだけのリストにして返す
             return [normalize_url(e["url"]) for e in data]
-    except Exception as e:
-        print(f"⚠️ 履歴の読み込みに失敗しました: {e}")
+    except:
         return []
 
-def save_events(events):
-    """今のイベント一覧を保存する"""
-    try:
-        with open("events.json", "w", encoding="utf-8") as f:
-            json.dump(events, f, ensure_ascii=False, indent=2)
-        print("✅ 履歴を events.json に保存しました。")
-    except Exception as e:
-        print(f"❌ 保存に失敗しました: {e}")
-
 def send_email(event):
-    """EmailJSを使ってメールを送る"""
-    print(f"📨 メール送信中: {event['title']}")
-    
-    # 必須パラメータのチェック
-    if not all([SERVICE_ID, TEMPLATE_ID, PUBLIC_KEY]):
-        print("❌ エラー: EmailJSのIDまたはKeyが設定されていません。Secretsを確認してください。")
-        return
-
+    """EmailJSで送信"""
+    print(f"📨 送信中: {event['title']}")
     data = {
         "service_id": SERVICE_ID,
         "template_id": TEMPLATE_ID,
         "user_id": PUBLIC_KEY,
         "template_params": {
             "title": event["title"],
-            "date": event["date"],
             "url": event["url"],
-            "image": event["image"]
+            "image": event["image"],
+            "date": event["date"]
         }
     }
-    
-    # 403エラー対策でaccessTokenが必要な場合
     if PRIVATE_KEY:
         data["accessToken"] = PRIVATE_KEY
 
-    try:
-        response = requests.post(
-            "https://api.emailjs.com/api/v1.0/email/send",
-            json=data,
-            headers={'Content-Type': 'application/json'},
-            timeout=10
-        )
-        if response.status_code == 200:
-            print(f"  └ ✅ 送信成功！")
-        else:
-            print(f"  └ ❌ 送信失敗 ({response.status_code}): {response.text}")
-    except Exception as e:
-        print(f"  └ ❌ 送信中にエラーが発生しました: {e}")
+    res = requests.post("https://api.emailjs.com/api/v1.0/email/send", json=data)
+    print(f"結果: {res.status_code}")
 
 def main():
-    print("=== SUNABACO イベントチェッカー 開始 ===")
-    
-    # 1. サイトから取得
-    current_events = get_events()
-    print(f"現在のサイト上のイベント数: {len(current_events)} 件")
-
-    # 2. 過去の履歴と比較
+    events = get_events()
     old_urls = load_old_urls()
     
-    new_events = []
-    for e in current_events:
-        if e["url"] not in old_urls:
-            new_events.append(e)
+    new_events = [e for e in events if e["url"] not in old_urls]
 
-    # 3. 新着があれば通知
     if new_events:
-        print(f"🔥 新着が {len(new_events)} 件あります！")
+        print(f"🔥 新着 {len(new_events)}件！")
         for e in new_events:
             send_email(e)
     else:
-        print("😴 新着イベントはありません。")
+        print("😴 新着なし")
 
-    # 4. 履歴を更新
-    save_events(current_events)
-    print("=== 処理終了 ===")
+    # 履歴を更新
+    with open("events.json", "w", encoding="utf-8") as f:
+        json.dump(events, f, ensure_ascii=False, indent=2)
 
 if __name__ == "__main__":
     main()
