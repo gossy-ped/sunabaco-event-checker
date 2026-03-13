@@ -152,13 +152,22 @@ def main():
         if e["url"] not in old_urls:
             new_events.append(e)
 
-    # 3. 新着があれば通知
+    # 3. 通知の判定
     if new_events:
         print(f"🔥 新着が {len(new_events)} 件あります！")
         for e in new_events:
             send_email(e)
     else:
-        print("😴 新着イベントはありません。")
+        # --- ここを修正：新着がない時用のメールを送る ---
+        print("😴 新着イベントはありません。生存確認メールを送ります。")
+        nothing_event = {
+            "title": "【定期報告】新着イベントはありませんでした",
+            "date": "サイトは正常にチェックされました。",
+            "url": URL,
+            "image": ""
+        }
+        send_email(nothing_event)
+        # ------------------------------------------
 
     # 4. 履歴を更新
     save_events(current_events)
